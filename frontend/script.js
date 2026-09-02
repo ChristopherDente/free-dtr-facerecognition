@@ -4,11 +4,16 @@ const previewContainer = document.getElementById('previewContainer');
 const imagePreview = document.getElementById('imagePreview');
 const faceCanvas = document.getElementById('faceCanvas');
 const loadingState = document.getElementById('loadingState');
+const loadingText = document.getElementById('loadingText');
 const results = document.getElementById('results');
 const resultText = document.getElementById('resultText');
 const profilesContainer = document.getElementById('profilesContainer');
 const resetBtn = document.getElementById('resetBtn');
 const attendanceTableBody = document.getElementById('attendanceTableBody');
+const registerInputSection = document.getElementById('registerInputSection');
+const employeeNameInput = document.getElementById('employeeName');
+const dtrTableSection = document.getElementById('dtrTableSection');
+const captureBtnText = document.getElementById('captureBtnText');
 
 // Webcam Elements
 const startCamBtn = document.getElementById('startCamBtn');
@@ -18,8 +23,26 @@ const webcamContainer = document.getElementById('webcamContainer');
 const webcamVideo = document.getElementById('webcamVideo');
 let mediaStream = null;
 
-const API_URL = 'http://localhost:8000/api/recognize';
-const ATTENDANCE_URL = 'http://localhost:8000/api/attendance';
+const API_URL_RECOGNIZE = 'http://localhost:8888/api/recognize';
+const API_URL_REGISTER = 'http://localhost:8888/api/register';
+const ATTENDANCE_URL = 'http://localhost:8888/api/attendance';
+
+// Mode Switching
+let currentMode = 'attendance';
+document.querySelectorAll('input[name="appMode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        currentMode = e.target.value;
+        if (currentMode === 'register') {
+            registerInputSection.classList.remove('d-none');
+            dtrTableSection.classList.add('d-none');
+            captureBtnText.innerText = 'Capture & Save Profile';
+        } else {
+            registerInputSection.classList.add('d-none');
+            dtrTableSection.classList.remove('d-none');
+            captureBtnText.innerText = 'Capture & Log';
+        }
+    });
+});
 
 // Fetch attendance on load
 document.addEventListener('DOMContentLoaded', fetchAttendance);
@@ -72,14 +95,17 @@ startCamBtn.addEventListener('click', async () => {
 stopCamBtn.addEventListener('click', stopWebcam);
 
 captureBtn.addEventListener('click', () => {
-    // Draw current video frame to a temporary canvas
+    if (currentMode === 'register' && !employeeNameInput.value.trim()) {
+        alert('Please enter an Employee Name before capturing.');
+        return;
+    }
+
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = webcamVideo.videoWidth;
     tempCanvas.height = webcamVideo.videoHeight;
     const ctx = tempCanvas.getContext('2d');
     ctx.drawImage(webcamVideo, 0, 0, tempCanvas.width, tempCanvas.height);
     
-    // Convert to file
     tempCanvas.toBlob((blob) => {
         const file = new File([blob], "webcam_capture.jpg", { type: "image/jpeg" });
         stopWebcam();
@@ -96,7 +122,9 @@ function stopWebcam() {
     }
     webcamVideo.srcObject = null;
     webcamContainer.classList.add('d-none');
-    actionButtons.classList.remove('d-none');
+    if(document.getElementById('modeAttendance').checked || document.getElementById('modeRegister').checked) {
+       actionButtons.classList.remove('d-none');
+    }
 }
 
 function handleFile(file) {
@@ -105,12 +133,9 @@ function handleFile(file) {
         return;
     }
 
-    // Display image preview
     const reader = new FileReader();
     reader.onload = (e) => {
         imagePreview.src = e.target.result;
-        
-        // Wait for image to load to get dimensions for canvas
         imagePreview.onload = () => {
             setupCanvas();
             uploadAndDetect(file);
@@ -118,7 +143,6 @@ function handleFile(file) {
     };
     reader.readAsDataURL(file);
 
-    // Update UI state
     actionButtons.classList.add('d-none');
     webcamContainer.classList.add('d-none');
     previewContainer.classList.remove('d-none');
@@ -137,35 +161,51 @@ async function uploadAndDetect(file) {
     const formData = new FormData();
     formData.append('image', file);
 
+    if (currentMode === 'register') {
+        formData.append('name', employeeNameInput.value.trim());
+        loadingText.innerText = 'Profiling and saving face...';
+    } else {
+        loadingText.innerText = 'Recognizing identity...';
+    }
+
     try {
-        const response = await fetch(API_URL, {
+        const targetUrl = currentMode === 'register' ? API_URL_REGISTER : API_URL_RECOGNIZE;
+        const response = await fetch(targetUrl, {
             method: 'POST',
             body: formData
         });
 
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.statusText}`);
-        }
-
         const data = await response.json();
-        drawFaces(data.faces);
-        renderProfiles(data.faces);
-        
-        // Refresh DTR Log
-        fetchAttendance();
         
         loadingState.classList.add('d-none');
         results.classList.remove('d-none');
         resetBtn.classList.remove('d-none');
 
-        if (data.faces.length > 0) {
+        if (!response.ok || data.error) {
+            throw new Error(data.error || `Server error: ${response.statusText}`);
+        }
+
+        if (currentMode === 'register') {
+            drawFaces([data.profile]);
+            renderProfiles([data.profile]);
             results.className = 'alert alert-success d-none shadow-sm rounded-3 text-start';
             results.classList.remove('d-none');
-            resultText.innerText = `Success! ${data.message}`;
+            resultText.innerText = data.message;
+            employeeNameInput.value = ''; // clear input
         } else {
-            results.className = 'alert alert-warning d-none shadow-sm rounded-3 text-center';
-            results.classList.remove('d-none');
-            resultText.innerText = 'No faces detected in this image.';
+            drawFaces(data.faces);
+            renderSimpleCards(data.faces);
+            fetchAttendance(); // refresh table
+            
+            if (data.faces.length > 0) {
+                results.className = 'alert alert-success d-none shadow-sm rounded-3 text-start';
+                results.classList.remove('d-none');
+                resultText.innerText = data.message;
+            } else {
+                results.className = 'alert alert-warning d-none shadow-sm rounded-3 text-center';
+                results.classList.remove('d-none');
+                resultText.innerText = 'No known faces detected in this image.';
+            }
         }
 
     } catch (error) {
@@ -173,7 +213,7 @@ async function uploadAndDetect(file) {
         loadingState.classList.add('d-none');
         results.className = 'alert alert-danger d-none shadow-sm rounded-3 text-center';
         results.classList.remove('d-none');
-        resultText.innerText = 'An error occurred while processing the image.';
+        resultText.innerText = error.message || 'An error occurred while processing the image.';
         resetBtn.classList.remove('d-none');
     }
 }
@@ -204,7 +244,6 @@ function drawFaces(faces) {
         ctx.fill();
         ctx.stroke();
         
-        // Draw number/name label for profiling reference
         const labelText = isKnown ? face.name : `#${index + 1}`;
         ctx.fillStyle = color;
         ctx.fillRect(x, y - 25, ctx.measureText(labelText).width + 20, 25);
@@ -215,6 +254,7 @@ function drawFaces(faces) {
 }
 
 function renderProfiles(faces) {
+    profilesContainer.innerHTML = '';
     faces.forEach((face, index) => {
         const card = document.createElement('div');
         card.className = 'card border-0 shadow-sm rounded-3';
@@ -227,6 +267,28 @@ function renderProfiles(faces) {
         else if (face.dominant_emotion === 'surprise') emotionEmoji = '😲';
         else if (face.dominant_emotion === 'fear') emotionEmoji = '😨';
         else if (face.dominant_emotion === 'disgust') emotionEmoji = '🤢';
+
+        card.innerHTML = `
+            <div class="card-header bg-success text-white fw-bold text-center text-truncate">
+                Profile Saved: ${face.name}
+            </div>
+            <div class="card-body bg-white text-dark small text-start">
+                <p class="mb-1"><strong>Age:</strong> ~${face.age}</p>
+                <p class="mb-1"><strong>Gender:</strong> <span class="text-capitalize">${face.dominant_gender}</span></p>
+                <p class="mb-1"><strong>Emotion:</strong> <span class="text-capitalize">${face.dominant_emotion}</span> ${emotionEmoji}</p>
+                <p class="mb-0"><strong>Race:</strong> <span class="text-capitalize">${face.dominant_race}</span></p>
+            </div>
+        `;
+        profilesContainer.appendChild(card);
+    });
+}
+
+function renderSimpleCards(faces) {
+    profilesContainer.innerHTML = '';
+    faces.forEach((face, index) => {
+        const card = document.createElement('div');
+        card.className = 'card border-0 shadow-sm rounded-3';
+        card.style.minWidth = '200px';
         
         const isKnown = face.name && face.name !== 'Unknown';
         const headerClass = isKnown ? 'bg-success' : 'bg-primary';
@@ -236,11 +298,8 @@ function renderProfiles(faces) {
             <div class="card-header ${headerClass} text-white fw-bold text-center text-truncate">
                 ${nameLabel}
             </div>
-            <div class="card-body bg-white text-dark small text-start">
-                <p class="mb-1"><strong>Age:</strong> ~${face.age}</p>
-                <p class="mb-1"><strong>Gender:</strong> <span class="text-capitalize">${face.dominant_gender}</span></p>
-                <p class="mb-1"><strong>Emotion:</strong> <span class="text-capitalize">${face.dominant_emotion}</span> ${emotionEmoji}</p>
-                <p class="mb-0"><strong>Race:</strong> <span class="text-capitalize">${face.dominant_race}</span></p>
+            <div class="card-body bg-white text-dark small text-center">
+                ${isKnown ? '<p class="text-success fw-bold mb-0"><i class="bi bi-check-circle me-1"></i> Attendance Logged</p>' : '<p class="text-muted mb-0">Unrecognized</p>'}
             </div>
         `;
         profilesContainer.appendChild(card);
@@ -255,12 +314,10 @@ function resetUI() {
     resetBtn.classList.add('d-none');
     fileInput.value = '';
     
-    // Clear canvas
     const ctx = faceCanvas.getContext('2d');
     ctx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
 }
 
-// Window resize handler to reposition boxes if image scales
 window.addEventListener('resize', () => {
     if (!previewContainer.classList.contains('d-none')) {
         setupCanvas();

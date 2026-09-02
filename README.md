@@ -1,53 +1,67 @@
-# Face Recognition App Setup Guide (macOS)
+# Smart Daily Time Record (DTR) System
 
-This guide will walk you through setting up both the Python backend and the HTML/JS frontend on your Mac. 
+A modern, web-based Face Recognition and Attendance Logging application built with FastAPI, OpenCV, and DeepFace.
 
-We are using `deepface` for face recognition with an OpenCV backend, which makes installation very straightforward!
+## System Capabilities
 
-## Step 2: Set up the Python Backend
+The application has two distinct modes built directly into the UI:
+
+### 1. Register Employee (Profiling)
+When capturing a new employee's photo, the AI detects their face, performs deep profiling (Age, Gender, Emotion, and Race), crops the face perfectly, and securely registers them into the database (`backend/known_faces`). 
+
+### 2. Daily Time Record (Fast Attendance)
+This mode optimizes for speed. When clocking in, it skips the heavy profiling algorithms and instantly compares the captured face against the database using deep neural networks. Successful recognitions are immediately logged into the Attendance Table (`backend/attendance.csv`).
+
+## AI Models Under the Hood
+This system leverages state-of-the-art Deep Learning models:
+- **Face Detection (Finding the Face):** Powered by **MTCNN** (Multi-task Cascaded Convolutional Networks) for highly accurate and robust detection.
+- **Face Recognition (Identity Matching):** Powered by **VGG-Face** to generate complex 2622-dimensional facial embeddings and perform cosine similarity matching against the database.
+
+---
+
+## Setup Guide (macOS)
+
+### 1. Set up the Python Backend
 
 1. **Open a terminal in the `backend` folder** of this project.
    ```bash
    cd path/to/free-dtr-facerecognition/backend
    ```
 
-2. **Create a Virtual Environment (Highly Recommended)**
-   This keeps your project dependencies isolated from your system Python.
+2. **Create a Virtual Environment**
+   It's highly recommended to use Python 3.11 to ensure compatibility with TensorFlow and DeepFace on Apple Silicon.
    ```bash
-   python3 -m venv venv
+   python3.11 -m venv venv
    ```
 
 3. **Activate the Virtual Environment**
    ```bash
    source venv/bin/activate
    ```
-   *(You should now see `(venv)` at the beginning of your terminal prompt)*
 
 4. **Install the Requirements**
-   This step will download `deepface`, `tensorflow`, and `opencv`. It may take a minute depending on your internet connection.
    ```bash
    pip install -r requirements.txt
    ```
 
 5. **Start the Backend Server**
+   Run the server on port 8888 to avoid common conflicts with other local projects.
    ```bash
-   python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+   python -m uvicorn app:app --host 0.0.0.0 --port 8888 --reload
    ```
-   If successful, you will see a message saying `Application startup complete` and that Uvicorn is running on `http://0.0.0.0:8000`.
 
-## Step 3: Run the Frontend
+### 2. Run the Frontend
 
-1. Keep the terminal running your backend server open.
-2. Navigate to the `frontend` folder in your file explorer (Finder).
-3. **Double-click `index.html`** to open it in your default web browser (Chrome, Safari, etc.).
-   *Alternatively, if you use VSCode, you can right-click the file and select "Open with Live Server" if you have that extension installed.*
+For webcam compatibility and to avoid browser security blocks, run the frontend on a local server rather than just double-clicking the HTML file.
 
-## Step 4: Test it out!
+1. **Open a NEW terminal in the `frontend` folder**.
+2. **Start a simple HTTP server**:
+   ```bash
+   python3 -m http.server 3000
+   ```
+3. Open your web browser and navigate to: **http://localhost:3000**
 
-1. With the browser open, click the "Select Image" button or drag and drop a picture containing faces into the upload area.
-2. The frontend will instantly send the image to your Python backend running on your CPU.
-3. The backend will calculate the coordinates, and the frontend will draw blue bounding boxes around the faces!
-
-## Troubleshooting
-- **`ModuleNotFoundError: No module named 'fastapi'`**: Ensure you activated your virtual environment (`source venv/bin/activate`) before running the server.
-- **TensorFlow Warnings**: You might see some C++ warnings from TensorFlow in your terminal when starting the server. This is perfectly normal and won't affect the app!
+### 3. Usage
+1. Make sure both servers are running.
+2. Start by switching to **Register Employee** mode, typing your name, and saving your profile.
+3. Switch back to **Daily Time Record** mode and capture your face to log your attendance!

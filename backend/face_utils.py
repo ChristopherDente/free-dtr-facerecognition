@@ -31,7 +31,7 @@ def register_and_profile_face(image_bytes: bytes, name: str):
         analysis = DeepFace.analyze(
             img_path=image_array, 
             actions=['age', 'gender', 'emotion', 'race'],
-            detector_backend='opencv', 
+            detector_backend='mtcnn', 
             enforce_detection=True # Enforce detection for registration
         )
     except Exception as e:
@@ -99,7 +99,7 @@ def recognize_face_for_attendance(image_bytes: bytes):
         dfs = DeepFace.find(
             img_path=image_array,
             db_path=KNOWN_FACES_DIR,
-            detector_backend='opencv',
+            detector_backend='mtcnn',
             enforce_detection=False,
             silent=True
         )
