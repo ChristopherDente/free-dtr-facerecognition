@@ -10,13 +10,21 @@ const resultText = document.getElementById('resultText');
 const profilesContainer = document.getElementById('profilesContainer');
 const resetBtn = document.getElementById('resetBtn');
 const attendanceTableBody = document.getElementById('attendanceTableBody');
-const registerInputSection = document.getElementById('registerInputSection');
+const registerForm = document.getElementById('registerForm');
 const employeeNameInput = document.getElementById('employeeName');
 const dtrTableSection = document.getElementById('dtrTableSection');
 const captureBtnText = document.getElementById('captureBtnText');
+const idleState = document.getElementById('idleState');
+
+// Navigation and Titles
+const navAttendance = document.getElementById('navAttendance');
+const navRegister = document.getElementById('navRegister');
+const pageTitle = document.getElementById('pageTitle');
+const pageSubtitle = document.getElementById('pageSubtitle');
 
 // Webcam Elements
 const startCamBtn = document.getElementById('startCamBtn');
+const regStartCamBtn = document.getElementById('regStartCamBtn'); // In register form
 const stopCamBtn = document.getElementById('stopCamBtn');
 const captureBtn = document.getElementById('captureBtn');
 const webcamContainer = document.getElementById('webcamContainer');
@@ -27,22 +35,40 @@ const API_URL_RECOGNIZE = 'http://localhost:8888/api/recognize';
 const API_URL_REGISTER = 'http://localhost:8888/api/register';
 const ATTENDANCE_URL = 'http://localhost:8888/api/attendance';
 
-// Mode Switching
 let currentMode = 'attendance';
-document.querySelectorAll('input[name="appMode"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-        currentMode = e.target.value;
-        if (currentMode === 'register') {
-            registerInputSection.classList.remove('d-none');
-            dtrTableSection.classList.add('d-none');
-            captureBtnText.innerText = 'Capture & Save Profile';
-        } else {
-            registerInputSection.classList.add('d-none');
-            dtrTableSection.classList.remove('d-none');
-            captureBtnText.innerText = 'Capture & Log';
-        }
-    });
-});
+
+// Navigation Logic
+function switchMode(mode) {
+    currentMode = mode;
+    
+    // Update nav styling
+    if (mode === 'attendance') {
+        navAttendance.classList.add('active');
+        navRegister.classList.remove('active');
+        
+        pageTitle.innerText = 'Attendance Dashboard';
+        pageSubtitle.innerText = 'Real-time face recognition and attendance logging.';
+        
+        registerForm.classList.add('d-none');
+        dtrTableSection.classList.remove('d-none');
+        captureBtnText.innerText = 'Log Attendance';
+    } else {
+        navRegister.classList.add('active');
+        navAttendance.classList.remove('active');
+        
+        pageTitle.innerText = 'Register Profile';
+        pageSubtitle.innerText = 'Enroll new employees into the facial recognition database.';
+        
+        registerForm.classList.remove('d-none');
+        dtrTableSection.classList.add('d-none');
+        captureBtnText.innerText = 'Save Profile';
+    }
+    
+    resetUI();
+}
+
+navAttendance.addEventListener('click', (e) => { e.preventDefault(); switchMode('attendance'); });
+navRegister.addEventListener('click', (e) => { e.preventDefault(); switchMode('register'); });
 
 // Fetch attendance on load
 document.addEventListener('DOMContentLoaded', fetchAttendance);
@@ -55,16 +81,16 @@ async function fetchAttendance() {
         
         attendanceTableBody.innerHTML = '';
         if (data.logs.length === 0) {
-            attendanceTableBody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">No records yet.</td></tr>';
+            attendanceTableBody.innerHTML = '<tr><td colspan="3" class="text-center text-slate-500 py-5">No records found today.</td></tr>';
             return;
         }
         
         data.logs.forEach(log => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td class="fw-semibold">${log.Name}</td>
-                <td>${log.Date}</td>
-                <td><span class="badge bg-secondary">${log.Time}</span></td>
+                <td class="fw-semibold text-white">${log.Name}</td>
+                <td class="text-slate-400">${log.Date}</td>
+                <td class="text-end"><span class="badge bg-slate-800 text-slate-300 border border-slate-700">${log.Time}</span></td>
             `;
             attendanceTableBody.appendChild(tr);
         });
@@ -81,22 +107,26 @@ fileInput.addEventListener('change', (e) => {
 });
 
 // Webcam Handlers
-startCamBtn.addEventListener('click', async () => {
+async function startWebcam() {
     try {
         mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
         webcamVideo.srcObject = mediaStream;
-        actionButtons.classList.add('d-none');
+        idleState.classList.add('d-none');
+        previewContainer.classList.add('d-none');
         webcamContainer.classList.remove('d-none');
     } catch (err) {
         alert('Error accessing webcam: ' + err.message);
     }
-});
+}
 
+startCamBtn.addEventListener('click', startWebcam);
+if (regStartCamBtn) regStartCamBtn.addEventListener('click', startWebcam);
 stopCamBtn.addEventListener('click', stopWebcam);
 
 captureBtn.addEventListener('click', () => {
     if (currentMode === 'register' && !employeeNameInput.value.trim()) {
         alert('Please enter an Employee Name before capturing.');
+        employeeNameInput.focus();
         return;
     }
 
@@ -122,14 +152,20 @@ function stopWebcam() {
     }
     webcamVideo.srcObject = null;
     webcamContainer.classList.add('d-none');
-    if(document.getElementById('modeAttendance').checked || document.getElementById('modeRegister').checked) {
-       actionButtons.classList.remove('d-none');
+    if (previewContainer.classList.contains('d-none')) {
+        idleState.classList.remove('d-none');
     }
 }
 
 function handleFile(file) {
     if (!file.type.startsWith('image/')) {
         alert('Please select a valid image file.');
+        return;
+    }
+
+    if (currentMode === 'register' && !employeeNameInput.value.trim()) {
+        alert('Please enter an Employee Name before uploading.');
+        employeeNameInput.focus();
         return;
     }
 
@@ -143,12 +179,12 @@ function handleFile(file) {
     };
     reader.readAsDataURL(file);
 
-    actionButtons.classList.add('d-none');
+    stopWebcam();
+    idleState.classList.add('d-none');
     webcamContainer.classList.add('d-none');
     previewContainer.classList.remove('d-none');
     loadingState.classList.remove('d-none');
     results.classList.add('d-none');
-    resetBtn.classList.add('d-none');
     profilesContainer.innerHTML = '';
 }
 
@@ -179,7 +215,6 @@ async function uploadAndDetect(file) {
         
         loadingState.classList.add('d-none');
         results.classList.remove('d-none');
-        resetBtn.classList.remove('d-none');
 
         if (!response.ok || data.error) {
             throw new Error(data.error || `Server error: ${response.statusText}`);
@@ -188,9 +223,8 @@ async function uploadAndDetect(file) {
         if (currentMode === 'register') {
             drawFaces([data.profile]);
             renderProfiles([data.profile]);
-            results.className = 'alert alert-success d-none shadow-sm rounded-3 text-start';
-            results.classList.remove('d-none');
             resultText.innerText = data.message;
+            resultText.className = "badge bg-emerald-subtle text-emerald border border-emerald-alpha";
             employeeNameInput.value = ''; // clear input
         } else {
             drawFaces(data.faces);
@@ -198,23 +232,26 @@ async function uploadAndDetect(file) {
             fetchAttendance(); // refresh table
             
             if (data.faces.length > 0) {
-                results.className = 'alert alert-success d-none shadow-sm rounded-3 text-start';
-                results.classList.remove('d-none');
                 resultText.innerText = data.message;
+                resultText.className = "badge bg-emerald-subtle text-emerald border border-emerald-alpha";
             } else {
-                results.className = 'alert alert-warning d-none shadow-sm rounded-3 text-center';
-                results.classList.remove('d-none');
-                resultText.innerText = 'No known faces detected in this image.';
+                resultText.innerText = 'Unrecognized';
+                resultText.className = "badge bg-warning text-dark";
             }
         }
 
     } catch (error) {
         console.error('Error:', error);
         loadingState.classList.add('d-none');
-        results.className = 'alert alert-danger d-none shadow-sm rounded-3 text-center';
         results.classList.remove('d-none');
-        resultText.innerText = error.message || 'An error occurred while processing the image.';
-        resetBtn.classList.remove('d-none');
+        resultText.innerText = 'Error';
+        resultText.className = "badge bg-danger text-white";
+        
+        profilesContainer.innerHTML = `
+            <div class="alert alert-danger mb-0 border-0 bg-danger text-white bg-opacity-10">
+                <i class="bi bi-exclamation-triangle me-2"></i> ${error.message || 'An error occurred.'}
+            </div>
+        `;
     }
 }
 
@@ -232,8 +269,8 @@ function drawFaces(faces) {
         const height = face.h * scaleY;
         
         const isKnown = face.name && face.name !== 'Unknown';
-        const color = isKnown ? '#198754' : '#0d6efd'; // green for known, blue for unknown
-        const bgColor = isKnown ? 'rgba(25, 135, 84, 0.2)' : 'rgba(13, 110, 253, 0.2)';
+        const color = isKnown ? '#10b981' : '#38bdf8'; // emerald for known, sky blue for unknown
+        const bgColor = isKnown ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)';
 
         ctx.lineWidth = 3;
         ctx.strokeStyle = color;
@@ -248,8 +285,8 @@ function drawFaces(faces) {
         ctx.fillStyle = color;
         ctx.fillRect(x, y - 25, ctx.measureText(labelText).width + 20, 25);
         ctx.fillStyle = 'white';
-        ctx.font = '16px Inter';
-        ctx.fillText(labelText, x + 5, y - 7);
+        ctx.font = 'bold 14px Outfit';
+        ctx.fillText(labelText, x + 6, y - 8);
     });
 }
 
@@ -257,8 +294,7 @@ function renderProfiles(faces) {
     profilesContainer.innerHTML = '';
     faces.forEach((face, index) => {
         const card = document.createElement('div');
-        card.className = 'card border-0 shadow-sm rounded-3';
-        card.style.minWidth = '200px';
+        card.className = 'profile-card';
         
         let emotionEmoji = '😐';
         if (face.dominant_emotion === 'happy') emotionEmoji = '😄';
@@ -269,10 +305,10 @@ function renderProfiles(faces) {
         else if (face.dominant_emotion === 'disgust') emotionEmoji = '🤢';
 
         card.innerHTML = `
-            <div class="card-header bg-success text-white fw-bold text-center text-truncate">
+            <div class="profile-card-header success text-truncate">
                 Profile Saved: ${face.name}
             </div>
-            <div class="card-body bg-white text-dark small text-start">
+            <div class="profile-card-body text-start">
                 <p class="mb-1"><strong>Age:</strong> ~${face.age}</p>
                 <p class="mb-1"><strong>Gender:</strong> <span class="text-capitalize">${face.dominant_gender}</span></p>
                 <p class="mb-1"><strong>Emotion:</strong> <span class="text-capitalize">${face.dominant_emotion}</span> ${emotionEmoji}</p>
@@ -287,19 +323,18 @@ function renderSimpleCards(faces) {
     profilesContainer.innerHTML = '';
     faces.forEach((face, index) => {
         const card = document.createElement('div');
-        card.className = 'card border-0 shadow-sm rounded-3';
-        card.style.minWidth = '200px';
+        card.className = 'profile-card';
         
         const isKnown = face.name && face.name !== 'Unknown';
-        const headerClass = isKnown ? 'bg-success' : 'bg-primary';
+        const headerClass = isKnown ? 'success' : 'primary';
         const nameLabel = isKnown ? face.name : `Unknown Face #${index + 1}`;
 
         card.innerHTML = `
-            <div class="card-header ${headerClass} text-white fw-bold text-center text-truncate">
+            <div class="profile-card-header ${headerClass} text-truncate">
                 ${nameLabel}
             </div>
-            <div class="card-body bg-white text-dark small text-center">
-                ${isKnown ? '<p class="text-success fw-bold mb-0"><i class="bi bi-check-circle me-1"></i> Attendance Logged</p>' : '<p class="text-muted mb-0">Unrecognized</p>'}
+            <div class="profile-card-body text-center">
+                ${isKnown ? '<p class="text-emerald fw-bold mb-0"><i class="bi bi-check-circle me-1"></i> Attendance Logged</p>' : '<p class="text-slate-500 mb-0">Unrecognized</p>'}
             </div>
         `;
         profilesContainer.appendChild(card);
@@ -308,10 +343,9 @@ function renderSimpleCards(faces) {
 
 function resetUI() {
     stopWebcam();
-    actionButtons.classList.remove('d-none');
     previewContainer.classList.add('d-none');
     results.classList.add('d-none');
-    resetBtn.classList.add('d-none');
+    idleState.classList.remove('d-none');
     fileInput.value = '';
     
     const ctx = faceCanvas.getContext('2d');
@@ -323,3 +357,16 @@ window.addEventListener('resize', () => {
         setupCanvas();
     }
 });
+
+// Clock Functionality
+function updateClock() {
+    const now = new Date();
+    const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+    const dateOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+    
+    document.getElementById('clockTime').innerText = now.toLocaleTimeString('en-US', timeOptions);
+    document.getElementById('clockDate').innerText = now.toLocaleDateString('en-US', dateOptions);
+}
+
+setInterval(updateClock, 1000);
+updateClock();

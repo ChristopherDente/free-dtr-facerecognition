@@ -3,128 +3,187 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Face Recognition DTR App</title>
-    <!-- Bootstrap CSS -->
+    <title>Free DTR Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="style.css?v=8.0">
 </head>
 <body>
 
-    <div class="container min-vh-100 d-flex flex-column justify-content-center align-items-center py-5">
-        
-        <div class="text-center mb-5 hero-section">
-            <h1 class="display-4 fw-bold gradient-text">Smart DTR System</h1>
-            <p class="lead text-muted">Face Recognition & Attendance Logging using DeepFace & FastAPI.</p>
+    <!-- Sidebar -->
+    <div class="sidebar d-flex flex-column p-4 border-end border-slate-800">
+        <div class="brand mb-5 d-flex align-items-center">
+            <div class="brand-icon bg-emerald text-white rounded me-3 d-flex justify-content-center align-items-center shadow-emerald" style="width: 40px; height: 40px;">
+                <i class="bi bi-fingerprint fs-4"></i>
+            </div>
+            <h4 class="fw-bold m-0 text-white">Smart<span class="text-emerald">DTR</span></h4>
         </div>
+        
+        <p class="text-slate-500 fw-bold small text-uppercase tracking-wide mb-3 px-2">Navigation</p>
+        <ul class="nav nav-pills flex-column mb-auto gap-2">
+            <li class="nav-item">
+                <a href="#" class="nav-link active" id="navAttendance" data-mode="attendance">
+                    <i class="bi bi-grid-1x2-fill me-3"></i> Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" id="navRegister" data-mode="register">
+                    <i class="bi bi-person-plus-fill me-3"></i> Registration
+                </a>
+            </li>
+        </ul>
 
-        <div class="card shadow-lg border-0 rounded-4 w-100" style="max-width: 800px;">
-            <div class="card-body p-5 text-center">
-                
-                <!-- Mode Toggle -->
-                <div class="d-flex justify-content-center mb-4">
-                    <div class="btn-group" role="group">
-                        <input type="radio" class="btn-check" name="appMode" id="modeAttendance" autocomplete="off" value="attendance" checked>
-                        <label class="btn btn-outline-primary px-4" for="modeAttendance">Daily Time Record</label>
-
-                        <input type="radio" class="btn-check" name="appMode" id="modeRegister" autocomplete="off" value="register">
-                        <label class="btn btn-outline-primary px-4" for="modeRegister">Register Employee</label>
-                    </div>
-                </div>
-
-                <!-- Registration Input (Hidden by default) -->
-                <div id="registerInputSection" class="d-none mb-4 mx-auto" style="max-width: 300px;">
-                    <label for="employeeName" class="form-label fw-bold">Employee Name</label>
-                    <input type="text" class="form-control text-center" id="employeeName" placeholder="e.g. John Doe">
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="d-flex justify-content-center gap-3 mb-4" id="actionButtons">
-                    <button id="startCamBtn" class="btn btn-outline-primary btn-lg rounded-pill px-4">
-                        <i class="bi bi-camera-video me-2"></i>Use Webcam
-                    </button>
-                    <button class="btn btn-outline-secondary btn-lg rounded-pill px-4" onclick="document.getElementById('fileInput').click()">
-                        <i class="bi bi-upload me-2"></i>Upload Image
-                    </button>
-                    <input type="file" id="fileInput" class="d-none" accept="image/*">
-                </div>
-
-                <!-- Webcam Container -->
-                <div id="webcamContainer" class="d-none mb-4">
-                    <video id="webcamVideo" class="img-fluid rounded-3 shadow mb-3 bg-dark" autoplay playsinline style="max-height: 500px; width: 100%; object-fit: cover;"></video>
-                    <div>
-                        <button id="captureBtn" class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm">
-                            <i class="bi bi-camera me-2"></i><span id="captureBtnText">Capture & Log</span>
-                        </button>
-                        <button id="stopCamBtn" class="btn btn-outline-danger btn-lg rounded-pill px-4 ms-2">
-                            Stop Camera
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Preview and Canvas (Hidden by default) -->
-                <div id="previewContainer" class="position-relative d-none mx-auto mb-4">
-                    <img id="imagePreview" class="img-fluid rounded-3 shadow" alt="Preview" style="max-height: 500px;">
-                    <canvas id="faceCanvas" class="position-absolute top-0 start-0 w-100 h-100"></canvas>
-                </div>
-
-                <!-- Loading State -->
-                <div id="loadingState" class="d-none my-4">
-                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-3 fw-semibold text-primary" id="loadingText">Processing...</p>
-                </div>
-
-                <!-- Results -->
-                <div id="results" class="alert alert-success d-none shadow-sm rounded-3 text-start">
-                    <h5 class="mb-3 text-center" id="resultText">Faces found!</h5>
-                    <div id="profilesContainer" class="d-flex flex-wrap gap-3 justify-content-center">
-                        <!-- Profiling cards will go here -->
-                    </div>
-                </div>
-
-                <!-- Reset Button -->
-                <button id="resetBtn" class="btn btn-outline-secondary btn-lg rounded-pill px-5 d-none mt-3 w-100">
-                    Try Again
-                </button>
-
+        <div class="sidebar-footer mt-auto pt-4 border-top border-slate-800 text-center">
+            <div class="clock-widget p-3 rounded bg-slate-900 border border-slate-700">
+                <h4 class="m-0 fw-bold font-mono text-emerald tracking-wide" id="clockTime">00:00:00 AM</h4>
+                <small class="text-slate-400 fw-semibold text-uppercase d-block mt-1" style="font-size: 0.75rem;" id="clockDate">Jan 1, 2024</small>
             </div>
         </div>
-        
-        <!-- DTR Table Section (Hidden during Registration) -->
-        <div id="dtrTableSection" class="card shadow-lg border-0 rounded-4 w-100 mt-5" style="max-width: 800px;">
-            <div class="card-body p-5">
-                <h3 class="mb-4 text-center fw-bold text-primary">
-                    <i class="bi bi-clock-history me-2"></i>Daily Time Record
-                </h3>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Name</th>
-                                <th>Date</th>
-                                <th>Time</th>
-                            </tr>
-                        </thead>
-                        <tbody id="attendanceTableBody">
-                            <tr><td colspan="3" class="text-center text-muted py-4">Loading records...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="text-end mt-3">
-                    <button class="btn btn-sm btn-outline-secondary" onclick="fetchAttendance()">
-                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-                    </button>
-                </div>
-            </div>
-        </div>
-        
     </div>
 
-    <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-    
-    <script src="script.js"></script>
+    <!-- Main Content -->
+    <div class="main-content d-flex flex-column h-100">
+        
+        <!-- HEADER -->
+        <div class="header px-5 py-4 border-bottom border-slate-800 bg-slate-950 d-flex justify-content-between align-items-center">
+            <div>
+                <h3 class="fw-bold m-0 text-white" id="pageTitle">Attendance Dashboard</h3>
+                <p class="text-slate-400 m-0 mt-1 small" id="pageSubtitle">Real-time face recognition and attendance logging.</p>
+            </div>
+            <div>
+                <span class="badge bg-emerald-subtle text-emerald px-3 py-2 rounded-pill fw-semibold border border-emerald-alpha">
+                    <i class="bi bi-circle-fill small me-1 align-baseline" style="font-size: 0.5rem;"></i> System Online
+                </span>
+            </div>
+        </div>
+
+        <!-- DASHBOARD BODY -->
+        <div class="flex-grow-1 p-5 overflow-auto">
+            <div class="row g-4 h-100">
+                
+                <!-- Left Column: Camera/Scanner -->
+                <div class="col-xl-7 col-lg-6 h-100">
+                    <div class="panel h-100 d-flex flex-column shadow-sm">
+                        <div class="panel-header d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="m-0 fw-bold text-white d-flex align-items-center">
+                                <i class="bi bi-camera-video text-emerald me-2"></i> Scanner Feed
+                            </h5>
+                            <div class="d-flex gap-2" id="actionButtons">
+                                <button class="btn btn-sm btn-outline-emerald fw-semibold px-3" id="startCamBtn">
+                                    <i class="bi bi-play-fill me-1"></i> Start Camera
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="panel-body flex-grow-1 d-flex flex-column align-items-center justify-content-center bg-slate-950 rounded-3 border border-slate-800 position-relative overflow-hidden" style="min-height: 450px;">
+                            
+                            <!-- Idle State -->
+                            <div id="idleState" class="text-center text-slate-600">
+                                <i class="bi bi-camera fs-1 mb-2 d-block opacity-50"></i>
+                                <p class="m-0 fw-semibold">Camera is offline.</p>
+                                <small>Click "Start Camera" to begin scanning.</small>
+                            </div>
+
+                            <!-- Webcam -->
+                            <div id="webcamContainer" class="d-none w-100 h-100 position-absolute top-0 start-0">
+                                <video id="webcamVideo" class="w-100 h-100 object-fit-cover" autoplay playsinline></video>
+                                <div class="position-absolute bottom-0 start-0 w-100 p-4 bg-gradient-dark d-flex justify-content-center gap-3">
+                                    <button id="captureBtn" class="btn btn-emerald btn-lg px-5 shadow-emerald fw-bold rounded-pill">
+                                        <i class="bi bi-camera me-2"></i><span id="captureBtnText">Log Attendance</span>
+                                    </button>
+                                    <button id="stopCamBtn" class="btn btn-danger btn-lg px-4 rounded-pill fw-bold border-0 shadow-sm" style="background-color: #ef4444;">
+                                        Stop
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Preview / Canvas -->
+                            <div id="previewContainer" class="d-none w-100 h-100 position-absolute top-0 start-0 bg-slate-950 d-flex justify-content-center align-items-center p-3">
+                                <div class="position-relative mw-100 mh-100 d-inline-block">
+                                    <img id="imagePreview" class="mw-100 mh-100 rounded shadow-lg" alt="Preview" style="max-height: 400px; object-fit: contain;">
+                                    <canvas id="faceCanvas" class="position-absolute top-0 start-0 w-100 h-100 pointer-events-none"></canvas>
+                                </div>
+                                <div class="position-absolute bottom-0 start-0 w-100 p-4 bg-gradient-dark d-flex justify-content-center">
+                                    <button id="resetBtn" class="btn btn-slate px-5 rounded-pill fw-bold shadow-sm">
+                                        <i class="bi bi-arrow-repeat me-2"></i> Clear & Retry
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Loading Overlay -->
+                            <div id="loadingState" class="d-none position-absolute top-0 start-0 w-100 h-100 bg-slate-950-alpha d-flex flex-column justify-content-center align-items-center z-index-10 backdrop-blur">
+                                <div class="spinner-border text-emerald mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
+                                <h5 class="text-white fw-bold m-0" id="loadingText">Analyzing...</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Results & Context -->
+                <div class="col-xl-5 col-lg-6 h-100">
+                    <div class="d-flex flex-column gap-4 h-100">
+                        
+                        <!-- Registration Form (Hidden by default) -->
+                        <div id="registerForm" class="panel shadow-sm d-none fade-in border-emerald-subtle">
+                            <h5 class="fw-bold text-white mb-3"><i class="bi bi-person-badge text-emerald me-2"></i> Profile Details</h5>
+                            <div class="mb-3">
+                                <label class="form-label text-slate-400 fw-semibold small text-uppercase tracking-wide">Employee Full Name</label>
+                                <input type="text" id="employeeName" class="form-control form-control-lg bg-slate-950 border-slate-700 text-white" placeholder="e.g. Jane Doe">
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between">
+                                <small class="text-slate-500"><i class="bi bi-info-circle me-1"></i> Enter name before capturing.</small>
+                                <div>
+                                    <button class="btn btn-sm btn-slate fw-semibold px-3" onclick="document.getElementById('fileInput').click()">
+                                        <i class="bi bi-upload me-1"></i> Upload Photo
+                                    </button>
+                                    <input type="file" id="fileInput" class="d-none" accept="image/*">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scan Results -->
+                        <div id="results" class="panel shadow-sm d-none fade-in border-slate-700 bg-slate-900">
+                            <h5 class="mb-3 fw-bold text-white d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-magic text-emerald me-2"></i> Analysis Result</span>
+                                <span class="badge bg-slate-800 text-slate-300 border border-slate-700" id="resultText">Done</span>
+                            </h5>
+                            <div id="profilesContainer" class="d-flex flex-column gap-2 overflow-auto" style="max-height: 300px;">
+                                <!-- Cards injected here -->
+                            </div>
+                        </div>
+
+                        <!-- DTR Logs (Hidden during Registration) -->
+                        <div id="dtrTableSection" class="panel shadow-sm flex-grow-1 d-flex flex-column fade-in">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="m-0 fw-bold text-white"><i class="bi bi-clock-history text-emerald me-2"></i> Recent Logs</h5>
+                                <button class="btn btn-sm btn-slate px-3 py-1 fw-semibold" onclick="fetchAttendance()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i> Sync
+                                </button>
+                            </div>
+                            
+                            <div class="table-responsive flex-grow-1 border border-slate-800 rounded-3 bg-slate-950">
+                                <table class="table table-borderless modern-table m-0">
+                                    <thead class="bg-slate-900">
+                                        <tr>
+                                            <th class="py-3 px-4 text-slate-400 fw-semibold text-uppercase small tracking-wide">Employee</th>
+                                            <th class="py-3 px-4 text-slate-400 fw-semibold text-uppercase small tracking-wide">Date</th>
+                                            <th class="py-3 px-4 text-slate-400 fw-semibold text-uppercase small tracking-wide text-end">Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="attendanceTableBody">
+                                        <tr><td colspan="3" class="text-center text-slate-500 py-5">Connecting to database...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="script.js?v=2.0"></script>
 </body>
 </html>
