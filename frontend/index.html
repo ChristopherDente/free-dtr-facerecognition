@@ -87,7 +87,22 @@
                             <!-- Webcam -->
                             <div id="webcamContainer" class="d-none w-100 h-100 position-absolute top-0 start-0">
                                 <video id="webcamVideo" class="w-100 h-100 object-fit-cover" autoplay playsinline></video>
-                                <div class="position-absolute bottom-0 start-0 w-100 p-4 bg-gradient-dark d-flex justify-content-center gap-3">
+                                
+                                <!-- Face Guide & Scanner Overlay -->
+                                <div class="face-guide-overlay d-flex justify-content-center align-items-center position-absolute top-0 start-0 w-100 h-100 pointer-events-none z-index-5">
+                                    <div class="face-guide-frame">
+                                        <!-- AI Grid Background -->
+                                        <div class="ai-grid"></div>
+
+                                        <!-- AI Scanner Laser & Trail -->
+                                        <div class="scanner-overlay">
+                                            <div class="scanner-trail"></div>
+                                            <div class="scanner-laser"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="position-absolute bottom-0 start-0 w-100 p-4 bg-gradient-dark d-flex justify-content-center gap-3 z-index-10">
                                     <button id="captureBtn" class="btn btn-emerald btn-lg px-5 shadow-emerald fw-bold rounded-pill">
                                         <i class="bi bi-camera me-2"></i><span id="captureBtnText">Log Attendance</span>
                                     </button>
