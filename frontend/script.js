@@ -146,6 +146,13 @@ function stopWebcam() {
     // Reset Start Cam button
     startCamBtn.innerHTML = '<i class="bi bi-play-fill me-1"></i> Start Camera';
     startCamBtn.classList.replace('btn-outline-danger', 'btn-outline-emerald');
+    
+    // Clear overlay
+    const overlayCanvas = document.getElementById('webcamOverlay');
+    if (overlayCanvas) {
+        const ctx = overlayCanvas.getContext('2d');
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    }
 }
 
 startCamBtn.addEventListener('click', () => {
@@ -204,41 +211,101 @@ async function runAutoScanLoop() {
 async function performAutoScan() {
     if (webcamVideo.videoWidth === 0 || webcamVideo.videoHeight === 0) return;
     
-    const videoRect = webcamVideo.getBoundingClientRect();
-    const guideFrame = document.querySelector('.face-guide-frame');
-    const guideRect = guideFrame ? guideFrame.getBoundingClientRect() : null;
-    
-    if (!guideRect) return;
-    
-    const scale = Math.max(videoRect.width / webcamVideo.videoWidth, videoRect.height / webcamVideo.videoHeight);
-    const renderedWidth = webcamVideo.videoWidth * scale;
-    const renderedHeight = webcamVideo.videoHeight * scale;
-    
-    const offsetX = (videoRect.width - renderedWidth) / 2;
-    const offsetY = (videoRect.height - renderedHeight) / 2;
-    
-    const cropX = (guideRect.left - videoRect.left - offsetX) / scale;
-    const cropY = (guideRect.top - videoRect.top - offsetY) / scale;
-    const cropWidth = guideRect.width / scale;
-    const cropHeight = guideRect.height / scale;
-
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = cropWidth;
-    tempCanvas.height = cropHeight;
+    tempCanvas.width = webcamVideo.videoWidth;
+    tempCanvas.height = webcamVideo.videoHeight;
     const ctx = tempCanvas.getContext('2d');
-    
-    ctx.drawImage(webcamVideo, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+    ctx.drawImage(webcamVideo, 0, 0, tempCanvas.width, tempCanvas.height);
     
     return new Promise(resolve => {
         tempCanvas.toBlob((blob) => {
             const file = new File([blob], "webcam_capture.jpg", { type: "image/jpeg" });
+<<<<<<< HEAD
             handleFile(file);
+=======
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            const targetUrl = currentMode === 'register' ? API_URL_REGISTER : API_URL_RECOGNIZE;
+            if (currentMode === 'register') {
+                formData.append('name', employeeNameInput.value.trim());
+            }
+
+            try {
+                const response = await fetch(targetUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && !data.error) {
+                    if (currentMode === 'register' && data.profile) {
+                        drawLiveFaces([data.profile]);
+                        renderProfiles([data.profile]);
+                        resultText.innerText = data.message || 'Saved';
+                        resultText.className = "badge bg-emerald-subtle text-emerald border border-emerald-alpha";
+                        results.classList.remove('d-none');
+                        employeeNameInput.value = ''; // clear input so it doesn't loop
+                    } else if (currentMode === 'attendance' && data.faces) {
+                        drawLiveFaces(data.faces);
+                        
+                        if (data.faces.length > 0) {
+                            renderSimpleCards(data.faces);
+                            resultText.innerText = data.message || 'Scanned';
+                            resultText.className = "badge bg-emerald-subtle text-emerald border border-emerald-alpha";
+                            results.classList.remove('d-none');
+                            fetchAttendance(); // refresh table
+                        } else {
+                            results.classList.add('d-none');
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Auto scan error:", err);
+            }
+>>>>>>> parent of 3f87962 (update the mobile)
             resolve();
         }, 'image/jpeg');
     });
 }
 
+function drawLiveFaces(faces) {
+    const overlayCanvas = document.getElementById('webcamOverlay');
+    if (!overlayCanvas) return;
+    
+    overlayCanvas.width = webcamVideo.videoWidth;
+    overlayCanvas.height = webcamVideo.videoHeight;
+    const ctx = overlayCanvas.getContext('2d');
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    
+    faces.forEach((face, index) => {
+        const x = face.x;
+        const y = face.y;
+        const width = face.w;
+        const height = face.h;
+        
+        const isKnown = face.name && face.name !== 'Unknown';
+        const color = isKnown ? '#10b981' : '#38bdf8';
+        const bgColor = isKnown ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)';
 
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = bgColor;
+
+        ctx.beginPath();
+        ctx.rect(x, y, width, height);
+        ctx.fill();
+        ctx.stroke();
+        
+        const labelText = isKnown ? face.name : `#${index + 1}`;
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y - 25, ctx.measureText(labelText).width + 20, 25);
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 14px Outfit';
+        ctx.fillText(labelText, x + 6, y - 8);
+    });
+}
 
 
 resetBtn.addEventListener('click', () => {
