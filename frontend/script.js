@@ -218,11 +218,8 @@ async function performAutoScan() {
     ctx.drawImage(webcamVideo, 0, 0, tempCanvas.width, tempCanvas.height);
     
     return new Promise(resolve => {
-        tempCanvas.toBlob((blob) => {
+        tempCanvas.toBlob(async (blob) => {
             const file = new File([blob], "webcam_capture.jpg", { type: "image/jpeg" });
-<<<<<<< HEAD
-            handleFile(file);
-=======
             const formData = new FormData();
             formData.append('image', file);
             
@@ -264,7 +261,6 @@ async function performAutoScan() {
             } catch (err) {
                 console.error("Auto scan error:", err);
             }
->>>>>>> parent of 3f87962 (update the mobile)
             resolve();
         }, 'image/jpeg');
     });
