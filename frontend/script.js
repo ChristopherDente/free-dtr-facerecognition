@@ -145,19 +145,17 @@ function stopWebcam() {
     // Reset Start Cam button
     startCamBtn.innerHTML = '<i class="bi bi-play-fill me-1"></i> Start Camera';
     startCamBtn.classList.replace('btn-outline-danger', 'btn-outline-emerald');
-    
-    // Clear overlay
-    const overlayCanvas = document.getElementById('webcamOverlay');
-    if (overlayCanvas) {
-        const ctx = overlayCanvas.getContext('2d');
-        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    }
 }
 
 startCamBtn.addEventListener('click', () => {
     if (mediaStream) {
         stopWebcam();
     } else {
+        if (currentMode === 'register' && !employeeNameInput.value.trim()) {
+            alert('Please enter an Employee Name before starting the camera.');
+            employeeNameInput.focus();
+            return;
+        }
         startWebcam();
     }
 });
@@ -185,11 +183,30 @@ function stopAutoScan() {
 async function performAutoScan() {
     if (webcamVideo.videoWidth === 0 || webcamVideo.videoHeight === 0) return;
     
+    const videoRect = webcamVideo.getBoundingClientRect();
+    const guideFrame = document.querySelector('.face-guide-frame');
+    const guideRect = guideFrame ? guideFrame.getBoundingClientRect() : null;
+    
+    if (!guideRect) return;
+    
+    const scale = Math.max(videoRect.width / webcamVideo.videoWidth, videoRect.height / webcamVideo.videoHeight);
+    const renderedWidth = webcamVideo.videoWidth * scale;
+    const renderedHeight = webcamVideo.videoHeight * scale;
+    
+    const offsetX = (videoRect.width - renderedWidth) / 2;
+    const offsetY = (videoRect.height - renderedHeight) / 2;
+    
+    const cropX = (guideRect.left - videoRect.left - offsetX) / scale;
+    const cropY = (guideRect.top - videoRect.top - offsetY) / scale;
+    const cropWidth = guideRect.width / scale;
+    const cropHeight = guideRect.height / scale;
+
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = webcamVideo.videoWidth;
-    tempCanvas.height = webcamVideo.videoHeight;
+    tempCanvas.width = cropWidth;
+    tempCanvas.height = cropHeight;
     const ctx = tempCanvas.getContext('2d');
-    ctx.drawImage(webcamVideo, 0, 0, tempCanvas.width, tempCanvas.height);
+    
+    ctx.drawImage(webcamVideo, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
     
     return new Promise(resolve => {
         tempCanvas.toBlob(async (blob) => {
@@ -217,15 +234,12 @@ async function performAutoScan() {
                 
                 if (response.ok && !data.error) {
                     if (currentMode === 'register' && data.profile) {
-                        drawLiveFaces([data.profile]);
                         renderProfiles([data.profile]);
                         resultText.innerText = data.message || 'Saved';
                         resultText.className = "badge bg-emerald-subtle text-emerald border border-emerald-alpha";
                         results.classList.remove('d-none');
                         employeeNameInput.value = ''; // clear input so it doesn't loop
                     } else if (currentMode === 'attendance' && data.faces) {
-                        drawLiveFaces(data.faces);
-                        
                         if (data.faces.length > 0) {
                             renderSimpleCards(data.faces);
                             resultText.innerText = data.message || 'Scanned';
@@ -245,42 +259,7 @@ async function performAutoScan() {
     });
 }
 
-function drawLiveFaces(faces) {
-    const overlayCanvas = document.getElementById('webcamOverlay');
-    if (!overlayCanvas) return;
-    
-    overlayCanvas.width = webcamVideo.videoWidth;
-    overlayCanvas.height = webcamVideo.videoHeight;
-    const ctx = overlayCanvas.getContext('2d');
-    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    
-    faces.forEach((face, index) => {
-        const x = face.x;
-        const y = face.y;
-        const width = face.w;
-        const height = face.h;
-        
-        const isKnown = face.name && face.name !== 'Unknown';
-        const color = isKnown ? '#10b981' : '#38bdf8';
-        const bgColor = isKnown ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)';
 
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = color;
-        ctx.fillStyle = bgColor;
-
-        ctx.beginPath();
-        ctx.rect(x, y, width, height);
-        ctx.fill();
-        ctx.stroke();
-        
-        const labelText = isKnown ? face.name : `#${index + 1}`;
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y - 25, ctx.measureText(labelText).width + 20, 25);
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 14px Outfit';
-        ctx.fillText(labelText, x + 6, y - 8);
-    });
-}
 
 
 resetBtn.addEventListener('click', resetUI);
