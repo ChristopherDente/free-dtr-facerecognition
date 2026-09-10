@@ -27,8 +27,9 @@ const startCamBtn = document.getElementById('startCamBtn');
 const webcamContainer = document.getElementById('webcamContainer');
 const webcamVideo = document.getElementById('webcamVideo');
 let mediaStream = null;
-let autoScanInterval = null;
-let isAutoScanning = false;
+let autoScanLoopActive = false;
+let autoScanTimeout = null;
+let countdownValue = 3;
 
 const API_URL_RECOGNIZE = 'http://localhost:8888/api/recognize';
 const API_URL_REGISTER = 'http://localhost:8888/api/register';
@@ -151,32 +152,52 @@ startCamBtn.addEventListener('click', () => {
     if (mediaStream) {
         stopWebcam();
     } else {
-        if (currentMode === 'register' && !employeeNameInput.value.trim()) {
-            alert('Please enter an Employee Name before starting the camera.');
-            employeeNameInput.focus();
-            return;
-        }
         startWebcam();
     }
 });
 
 function startAutoScan() {
-    if (autoScanInterval) return;
-    const actionBar = document.getElementById('webcamActionBar');
-    if (actionBar) actionBar.classList.add('d-none');
-    
-    autoScanInterval = setInterval(async () => {
-        if (isAutoScanning || !mediaStream) return;
-        isAutoScanning = true;
-        await performAutoScan();
-        isAutoScanning = false;
-    }, 2000); // 2 seconds interval
+    if (autoScanLoopActive) return;
+    autoScanLoopActive = true;
+    countdownValue = 3;
+    runAutoScanLoop();
 }
 
 function stopAutoScan() {
-    if (autoScanInterval) {
-        clearInterval(autoScanInterval);
-        autoScanInterval = null;
+    autoScanLoopActive = false;
+    if (autoScanTimeout) {
+        clearTimeout(autoScanTimeout);
+        autoScanTimeout = null;
+    }
+    const countdownEl = document.getElementById('scanCountdown');
+    if (countdownEl) countdownEl.classList.add('d-none');
+}
+
+async function runAutoScanLoop() {
+    if (!autoScanLoopActive || !mediaStream) return;
+    
+    const countdownEl = document.getElementById('scanCountdown');
+    
+    // Pause countdown if register mode is active but no name is entered
+    if (currentMode === 'register' && !employeeNameInput.value.trim()) {
+        if (countdownEl) countdownEl.classList.add('d-none');
+        autoScanTimeout = setTimeout(runAutoScanLoop, 1000);
+        return;
+    }
+    
+    if (countdownEl) {
+        countdownEl.classList.remove('d-none');
+        countdownEl.innerText = countdownValue > 0 ? countdownValue : 'Scan!';
+        countdownEl.style.fontSize = countdownValue > 0 ? '5rem' : '2.5rem';
+    }
+    
+    if (countdownValue > 0) {
+        countdownValue--;
+        autoScanTimeout = setTimeout(runAutoScanLoop, 1000);
+    } else {
+        await performAutoScan();
+        countdownValue = 3;
+        autoScanTimeout = setTimeout(runAutoScanLoop, 1000);
     }
 }
 
@@ -209,51 +230,9 @@ async function performAutoScan() {
     ctx.drawImage(webcamVideo, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
     
     return new Promise(resolve => {
-        tempCanvas.toBlob(async (blob) => {
-            if (currentMode === 'register' && !employeeNameInput.value.trim()) {
-                resolve();
-                return;
-            }
-
+        tempCanvas.toBlob((blob) => {
             const file = new File([blob], "webcam_capture.jpg", { type: "image/jpeg" });
-            const formData = new FormData();
-            formData.append('image', file);
-            
-            const targetUrl = currentMode === 'register' ? API_URL_REGISTER : API_URL_RECOGNIZE;
-            if (currentMode === 'register') {
-                formData.append('name', employeeNameInput.value.trim());
-            }
-
-            try {
-                const response = await fetch(targetUrl, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok && !data.error) {
-                    if (currentMode === 'register' && data.profile) {
-                        renderProfiles([data.profile]);
-                        resultText.innerText = data.message || 'Saved';
-                        resultText.className = "badge bg-emerald-subtle text-emerald border border-emerald-alpha";
-                        results.classList.remove('d-none');
-                        employeeNameInput.value = ''; // clear input so it doesn't loop
-                    } else if (currentMode === 'attendance' && data.faces) {
-                        if (data.faces.length > 0) {
-                            renderSimpleCards(data.faces);
-                            resultText.innerText = data.message || 'Scanned';
-                            resultText.className = "badge bg-emerald-subtle text-emerald border border-emerald-alpha";
-                            results.classList.remove('d-none');
-                            fetchAttendance(); // refresh table
-                        } else {
-                            results.classList.add('d-none');
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error("Auto scan error:", err);
-            }
+            handleFile(file);
             resolve();
         }, 'image/jpeg');
     });
@@ -262,7 +241,10 @@ async function performAutoScan() {
 
 
 
-resetBtn.addEventListener('click', resetUI);
+resetBtn.addEventListener('click', () => {
+    resetUI();
+    startWebcam(); // Immediately restart camera after retry
+});
 
 function handleFile(file) {
     if (!file.type.startsWith('image/')) {
@@ -332,7 +314,6 @@ async function uploadAndDetect(file) {
             renderProfiles([data.profile]);
             resultText.innerText = data.message;
             resultText.className = "badge bg-emerald-subtle text-emerald border border-emerald-alpha";
-            employeeNameInput.value = ''; // clear input
         } else {
             drawFaces(data.faces);
             renderSimpleCards(data.faces);
