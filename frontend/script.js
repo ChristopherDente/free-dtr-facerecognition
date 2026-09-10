@@ -192,30 +192,106 @@ async function runAutoScanLoop() {
         return;
     }
     
-    if (countdownEl) {
-        countdownEl.classList.remove('d-none');
-        countdownEl.innerText = countdownValue > 0 ? countdownValue : 'Scan!';
-        countdownEl.style.fontSize = countdownValue > 0 ? '5rem' : '2.5rem';
-    }
-    
-    if (countdownValue > 0) {
+    if (countdownValue === 3) {
+        if (countdownEl) countdownEl.classList.add('d-none');
+        const shouldStartCountdown = await checkFacePresence();
+
+        if (shouldStartCountdown) {
+            if (countdownEl) {
+                countdownEl.classList.remove('d-none');
+                countdownEl.innerText = countdownValue;
+                countdownEl.style.fontSize = '5rem';
+            }
+            countdownValue--; 
+        }
+        autoScanTimeout = setTimeout(runAutoScanLoop, 1000);
+    } else if (countdownValue > 0) {
+        if (countdownEl) {
+            countdownEl.innerText = countdownValue;
+            countdownEl.style.fontSize = '5rem';
+        }
         countdownValue--;
         autoScanTimeout = setTimeout(runAutoScanLoop, 1000);
     } else {
+        if (countdownEl) {
+            countdownEl.classList.remove('d-none');
+            countdownEl.innerText = 'Scan!';
+            countdownEl.style.fontSize = '2.5rem';
+        }
         await performAutoScan();
         countdownValue = 3;
         autoScanTimeout = setTimeout(runAutoScanLoop, 1000);
     }
 }
 
+async function checkFacePresence() {
+    if (webcamVideo.videoWidth === 0 || webcamVideo.videoHeight === 0) return false;
+    
+    const faceGuide = document.querySelector('.face-guide-frame');
+    let sx = 0, sy = 0, sw = webcamVideo.videoWidth, sh = webcamVideo.videoHeight;
+    
+    if (faceGuide) {
+        const videoRect = webcamVideo.getBoundingClientRect();
+        const guideRect = faceGuide.getBoundingClientRect();
+        const scaleX = webcamVideo.videoWidth / videoRect.width;
+        const scaleY = webcamVideo.videoHeight / videoRect.height;
+        sx = Math.max(0, (guideRect.left - videoRect.left) * scaleX);
+        sy = Math.max(0, (guideRect.top - videoRect.top) * scaleY);
+        sw = Math.min(webcamVideo.videoWidth - sx, guideRect.width * scaleX);
+        sh = Math.min(webcamVideo.videoHeight - sy, guideRect.height * scaleY);
+    }
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = sw;
+    tempCanvas.height = sh;
+    const ctx = tempCanvas.getContext('2d');
+    ctx.drawImage(webcamVideo, sx, sy, sw, sh, 0, 0, sw, sh);
+    
+    return new Promise(resolve => {
+        tempCanvas.toBlob(async (blob) => {
+            const file = new File([blob], "detect_capture.jpg", { type: "image/jpeg" });
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            try {
+                const response = await fetch('http://localhost:8888/api/detect', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                resolve(data.detected || false);
+            } catch (err) {
+                console.error("Detect error:", err);
+                resolve(false);
+            }
+        }, 'image/jpeg');
+    });
+}
+
 async function performAutoScan() {
     if (webcamVideo.videoWidth === 0 || webcamVideo.videoHeight === 0) return;
     
+    const faceGuide = document.querySelector('.face-guide-frame');
+    let sx = 0, sy = 0, sw = webcamVideo.videoWidth, sh = webcamVideo.videoHeight;
+    
+    if (faceGuide) {
+        const videoRect = webcamVideo.getBoundingClientRect();
+        const guideRect = faceGuide.getBoundingClientRect();
+        
+        const scaleX = webcamVideo.videoWidth / videoRect.width;
+        const scaleY = webcamVideo.videoHeight / videoRect.height;
+        
+        sx = Math.max(0, (guideRect.left - videoRect.left) * scaleX);
+        sy = Math.max(0, (guideRect.top - videoRect.top) * scaleY);
+        sw = Math.min(webcamVideo.videoWidth - sx, guideRect.width * scaleX);
+        sh = Math.min(webcamVideo.videoHeight - sy, guideRect.height * scaleY);
+    }
+
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = webcamVideo.videoWidth;
-    tempCanvas.height = webcamVideo.videoHeight;
+    tempCanvas.width = sw;
+    tempCanvas.height = sh;
     const ctx = tempCanvas.getContext('2d');
-    ctx.drawImage(webcamVideo, 0, 0, tempCanvas.width, tempCanvas.height);
+    ctx.drawImage(webcamVideo, sx, sy, sw, sh, 0, 0, sw, sh);
     
     return new Promise(resolve => {
         tempCanvas.toBlob(async (blob) => {
@@ -274,33 +350,6 @@ function drawLiveFaces(faces) {
     overlayCanvas.height = webcamVideo.videoHeight;
     const ctx = overlayCanvas.getContext('2d');
     ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    
-    faces.forEach((face, index) => {
-        const x = face.x;
-        const y = face.y;
-        const width = face.w;
-        const height = face.h;
-        
-        const isKnown = face.name && face.name !== 'Unknown';
-        const color = isKnown ? '#10b981' : '#38bdf8';
-        const bgColor = isKnown ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)';
-
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = color;
-        ctx.fillStyle = bgColor;
-
-        ctx.beginPath();
-        ctx.rect(x, y, width, height);
-        ctx.fill();
-        ctx.stroke();
-        
-        const labelText = isKnown ? face.name : `#${index + 1}`;
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y - 25, ctx.measureText(labelText).width + 20, 25);
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 14px Outfit';
-        ctx.fillText(labelText, x + 6, y - 8);
-    });
 }
 
 
@@ -409,36 +458,6 @@ async function uploadAndDetect(file) {
 function drawFaces(faces) {
     const ctx = faceCanvas.getContext('2d');
     ctx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
-
-    const scaleX = imagePreview.width / imagePreview.naturalWidth;
-    const scaleY = imagePreview.height / imagePreview.naturalHeight;
-
-    faces.forEach((face, index) => {
-        const x = face.x * scaleX;
-        const y = face.y * scaleY;
-        const width = face.w * scaleX;
-        const height = face.h * scaleY;
-        
-        const isKnown = face.name && face.name !== 'Unknown';
-        const color = isKnown ? '#10b981' : '#38bdf8'; // emerald for known, sky blue for unknown
-        const bgColor = isKnown ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)';
-
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = color;
-        ctx.fillStyle = bgColor;
-
-        ctx.beginPath();
-        ctx.rect(x, y, width, height);
-        ctx.fill();
-        ctx.stroke();
-        
-        const labelText = isKnown ? face.name : `#${index + 1}`;
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y - 25, ctx.measureText(labelText).width + 20, 25);
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 14px Outfit';
-        ctx.fillText(labelText, x + 6, y - 8);
-    });
 }
 
 function renderProfiles(faces) {

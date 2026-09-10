@@ -1,7 +1,7 @@
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from face_utils import register_and_profile_face, recognize_face_for_attendance
+from face_utils import register_and_profile_face, recognize_face_for_attendance, detect_face
 import csv
 from datetime import datetime
 import os
@@ -80,6 +80,21 @@ async def recognize_face(image: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/detect")
+async def check_face_present(image: UploadFile = File(...)):
+    """
+    Fast endpoint to check if a face is in the image, without identifying or saving anything.
+    """
+    if not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image.")
+        
+    try:
+        contents = await image.read()
+        has_face = detect_face(contents)
+        return {"detected": has_face}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/attendance")
 async def get_attendance():
     logs = []
@@ -88,7 +103,7 @@ async def get_attendance():
             reader = csv.DictReader(f)
             for row in reader:
                 logs.append(row)
-    return {"logs": logs[::-1]}
+    return {"logs": logs[::-1][:10]}
 
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)

@@ -100,7 +100,7 @@ def recognize_face_for_attendance(image_bytes: bytes):
             img_path=image_array,
             db_path=KNOWN_FACES_DIR,
             detector_backend='mtcnn',
-            enforce_detection=False,
+            enforce_detection=True,
             silent=True
         )
         if not isinstance(dfs, list):
@@ -132,3 +132,18 @@ def recognize_face_for_attendance(image_bytes: bytes):
             })
             
     return recognized_faces
+
+def detect_face(image_bytes: bytes):
+    """
+    Fast face detection to check if any face is present.
+    """
+    image_array = _bytes_to_cv2(image_bytes)
+    try:
+        faces = DeepFace.extract_faces(
+            img_path=image_array,
+            detector_backend='mtcnn',
+            enforce_detection=True
+        )
+        return len(faces) > 0
+    except Exception:
+        return False
