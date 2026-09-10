@@ -13,7 +13,6 @@ const attendanceTableBody = document.getElementById('attendanceTableBody');
 const registerForm = document.getElementById('registerForm');
 const employeeNameInput = document.getElementById('employeeName');
 const dtrTableSection = document.getElementById('dtrTableSection');
-const captureBtnText = document.getElementById('captureBtnText');
 const idleState = document.getElementById('idleState');
 
 // Navigation and Titles
@@ -23,13 +22,13 @@ const pageTitle = document.getElementById('pageTitle');
 const pageSubtitle = document.getElementById('pageSubtitle');
 
 // Webcam Elements
+// Webcam Elements
 const startCamBtn = document.getElementById('startCamBtn');
-const regStartCamBtn = document.getElementById('regStartCamBtn'); // In register form
-const stopCamBtn = document.getElementById('stopCamBtn');
-const captureBtn = document.getElementById('captureBtn');
 const webcamContainer = document.getElementById('webcamContainer');
 const webcamVideo = document.getElementById('webcamVideo');
 let mediaStream = null;
+let autoScanInterval = null;
+let isAutoScanning = false;
 
 const API_URL_RECOGNIZE = 'http://localhost:8888/api/recognize';
 const API_URL_REGISTER = 'http://localhost:8888/api/register';
@@ -51,7 +50,6 @@ function switchMode(mode) {
         
         registerForm.classList.add('d-none');
         dtrTableSection.classList.remove('d-none');
-        captureBtnText.innerText = 'Log Attendance';
     } else {
         navRegister.classList.add('active');
         navAttendance.classList.remove('active');
@@ -61,7 +59,13 @@ function switchMode(mode) {
         
         registerForm.classList.remove('d-none');
         dtrTableSection.classList.add('d-none');
-        captureBtnText.innerText = 'Save Profile';
+    }
+    
+    // Close offcanvas if open (mobile view)
+    const sidebarOffcanvas = document.getElementById('sidebarOffcanvas');
+    if (sidebarOffcanvas && sidebarOffcanvas.classList.contains('show')) {
+        const bsOffcanvas = bootstrap.Offcanvas.getInstance(sidebarOffcanvas);
+        if (bsOffcanvas) bsOffcanvas.hide();
     }
     
     resetUI();
@@ -114,38 +118,20 @@ async function startWebcam() {
         idleState.classList.add('d-none');
         previewContainer.classList.add('d-none');
         webcamContainer.classList.remove('d-none');
+        
+        // Update Start Cam button to Stop Cam
+        startCamBtn.innerHTML = '<i class="bi bi-stop-fill me-1"></i> Stop Camera';
+        startCamBtn.classList.replace('btn-outline-emerald', 'btn-outline-danger');
+        
+        startAutoScan();
     } catch (err) {
         alert('Error accessing webcam: ' + err.message);
     }
 }
 
-startCamBtn.addEventListener('click', startWebcam);
-if (regStartCamBtn) regStartCamBtn.addEventListener('click', startWebcam);
-stopCamBtn.addEventListener('click', stopWebcam);
-
-captureBtn.addEventListener('click', () => {
-    if (currentMode === 'register' && !employeeNameInput.value.trim()) {
-        alert('Please enter an Employee Name before capturing.');
-        employeeNameInput.focus();
-        return;
-    }
-
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = webcamVideo.videoWidth;
-    tempCanvas.height = webcamVideo.videoHeight;
-    const ctx = tempCanvas.getContext('2d');
-    ctx.drawImage(webcamVideo, 0, 0, tempCanvas.width, tempCanvas.height);
-    
-    tempCanvas.toBlob((blob) => {
-        const file = new File([blob], "webcam_capture.jpg", { type: "image/jpeg" });
-        stopWebcam();
-        handleFile(file);
-    }, 'image/jpeg');
-});
-
-resetBtn.addEventListener('click', resetUI);
-
 function stopWebcam() {
+    stopAutoScan();
+    
     if (mediaStream) {
         mediaStream.getTracks().forEach(track => track.stop());
         mediaStream = null;
@@ -155,7 +141,149 @@ function stopWebcam() {
     if (previewContainer.classList.contains('d-none')) {
         idleState.classList.remove('d-none');
     }
+    
+    // Reset Start Cam button
+    startCamBtn.innerHTML = '<i class="bi bi-play-fill me-1"></i> Start Camera';
+    startCamBtn.classList.replace('btn-outline-danger', 'btn-outline-emerald');
+    
+    // Clear overlay
+    const overlayCanvas = document.getElementById('webcamOverlay');
+    if (overlayCanvas) {
+        const ctx = overlayCanvas.getContext('2d');
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    }
 }
+
+startCamBtn.addEventListener('click', () => {
+    if (mediaStream) {
+        stopWebcam();
+    } else {
+        startWebcam();
+    }
+});
+
+function startAutoScan() {
+    if (autoScanInterval) return;
+    const actionBar = document.getElementById('webcamActionBar');
+    if (actionBar) actionBar.classList.add('d-none');
+    
+    autoScanInterval = setInterval(async () => {
+        if (isAutoScanning || !mediaStream) return;
+        isAutoScanning = true;
+        await performAutoScan();
+        isAutoScanning = false;
+    }, 2000); // 2 seconds interval
+}
+
+function stopAutoScan() {
+    if (autoScanInterval) {
+        clearInterval(autoScanInterval);
+        autoScanInterval = null;
+    }
+}
+
+async function performAutoScan() {
+    if (webcamVideo.videoWidth === 0 || webcamVideo.videoHeight === 0) return;
+    
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = webcamVideo.videoWidth;
+    tempCanvas.height = webcamVideo.videoHeight;
+    const ctx = tempCanvas.getContext('2d');
+    ctx.drawImage(webcamVideo, 0, 0, tempCanvas.width, tempCanvas.height);
+    
+    return new Promise(resolve => {
+        tempCanvas.toBlob(async (blob) => {
+            if (currentMode === 'register' && !employeeNameInput.value.trim()) {
+                resolve();
+                return;
+            }
+
+            const file = new File([blob], "webcam_capture.jpg", { type: "image/jpeg" });
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            const targetUrl = currentMode === 'register' ? API_URL_REGISTER : API_URL_RECOGNIZE;
+            if (currentMode === 'register') {
+                formData.append('name', employeeNameInput.value.trim());
+            }
+
+            try {
+                const response = await fetch(targetUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && !data.error) {
+                    if (currentMode === 'register' && data.profile) {
+                        drawLiveFaces([data.profile]);
+                        renderProfiles([data.profile]);
+                        resultText.innerText = data.message || 'Saved';
+                        resultText.className = "badge bg-emerald-subtle text-emerald border border-emerald-alpha";
+                        results.classList.remove('d-none');
+                        employeeNameInput.value = ''; // clear input so it doesn't loop
+                    } else if (currentMode === 'attendance' && data.faces) {
+                        drawLiveFaces(data.faces);
+                        
+                        if (data.faces.length > 0) {
+                            renderSimpleCards(data.faces);
+                            resultText.innerText = data.message || 'Scanned';
+                            resultText.className = "badge bg-emerald-subtle text-emerald border border-emerald-alpha";
+                            results.classList.remove('d-none');
+                            fetchAttendance(); // refresh table
+                        } else {
+                            results.classList.add('d-none');
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Auto scan error:", err);
+            }
+            resolve();
+        }, 'image/jpeg');
+    });
+}
+
+function drawLiveFaces(faces) {
+    const overlayCanvas = document.getElementById('webcamOverlay');
+    if (!overlayCanvas) return;
+    
+    overlayCanvas.width = webcamVideo.videoWidth;
+    overlayCanvas.height = webcamVideo.videoHeight;
+    const ctx = overlayCanvas.getContext('2d');
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    
+    faces.forEach((face, index) => {
+        const x = face.x;
+        const y = face.y;
+        const width = face.w;
+        const height = face.h;
+        
+        const isKnown = face.name && face.name !== 'Unknown';
+        const color = isKnown ? '#10b981' : '#38bdf8';
+        const bgColor = isKnown ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)';
+
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = bgColor;
+
+        ctx.beginPath();
+        ctx.rect(x, y, width, height);
+        ctx.fill();
+        ctx.stroke();
+        
+        const labelText = isKnown ? face.name : `#${index + 1}`;
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y - 25, ctx.measureText(labelText).width + 20, 25);
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 14px Outfit';
+        ctx.fillText(labelText, x + 6, y - 8);
+    });
+}
+
+
+resetBtn.addEventListener('click', resetUI);
 
 function handleFile(file) {
     if (!file.type.startsWith('image/')) {
